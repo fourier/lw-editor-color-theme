@@ -28,6 +28,9 @@
 
 (defvar *background-color* nil)
 
+(defconstant +default-foreground-color :black)
+(defconstant +default-background-color :white)
+
 
 ;;; Implementation
 
@@ -55,9 +58,16 @@
 (defvar *all-editor-panes* (make-hash-table :test 'eq
 					    :weak-kind :key))
 
+(defun get-background-color ()
+  (or *background-color* +default-background-color))
+
+(defun get-foreground-color ()
+  (or *foreground-color* +default-foreground-color))
+
+
 (defun update-editor-pane (pane)
-  (setf (capi:simple-pane-foreground pane) (or *foreground-color* :color_windowtext))
-  (setf (capi:simple-pane-background pane) (or *background-color* :color_window))
+  (setf (capi:simple-pane-foreground pane) (get-foreground-color))
+  (setf (capi:simple-pane-background pane) (get-background-color))
   
   (let ((recolorize-p (editor::buffer-font-lock-mode-p (capi:editor-pane-buffer pane))))
     (when recolorize-p
@@ -87,6 +97,8 @@
     :compiler-note-highlight
     :compiler-warning-highlight
     :compiler-error-highlight
+    :incremental-search-face
+    :incremental-search-other-matches-face
     ))
 
 (defun set-color-theme (theme-name)
@@ -94,8 +106,8 @@
 		       &key foreground background &allow-other-keys)
       (color-theme-args theme-name)
     
-    (setf *foreground-color* (or foreground :color_windowtext))
-    (setf *background-color* (or background :color_window))
+    (setf *foreground-color* (or foreground +default-foreground-color))
+    (setf *background-color* (or background +default-background-color))
   
     (dolist (name *editor-face-names*)
       (let* ((color-theme-args-for-face (getf color-theme-args name))
@@ -132,18 +144,24 @@
 (defun remove-color-theme (theme-name)
   (remhash theme-name *all-color-themes*))
 
-(sys::without-warning-on-redefinition
-  (defmethod initialize-instance :around ((pane capi:editor-pane) &key &allow-other-keys)
-    (multiple-value-prog1
-	(call-next-method)
-      
-      (setf (gethash pane *all-editor-panes*) pane)
-      
-      (when *foreground-color*
-	(setf (capi:simple-pane-foreground pane) *foreground-color*))
-      (when *background-color*
-	(setf (capi:simple-pane-background pane) *background-color*))))
-  )
+(defun set-editor-pane-colors (pane)
+  (typecase pane
+    (capi:editor-pane
+     (progn
+       (setf (gethash pane *all-editor-panes*) pane)
+       (when *foreground-color*
+         (setf (capi:simple-pane-foreground pane) *foreground-color*))
+       (when *background-color*
+         (setf (capi:simple-pane-background pane) *background-color*))))))
+
+
+(lispworks:defadvice ((method capi:interface-display :before (lw-tools:editor))
+                      change-editor-colors
+                      :before
+                      :documentation "Change editor colors.")
+    (interface)
+  (capi:map-pane-descendant-children interface 'set-editor-pane-colors))
+
 
 ;; This makes it "work" after the podium is launched
 (defun is-editor-pane-p (obj)
@@ -164,7 +182,8 @@
 ;;; Initial color themes
 
 (define-color-theme "default" ()
-  :foreground nil :background nil
+  :foreground nil
+  :background nil
   :region '(:foreground :color_highlighttext
 	    :background :color_highlight)
   :show-point-face '(:background :green)
@@ -180,7 +199,9 @@
   :font-lock-builtin-face '(:foreground :orchid)
   :compiler-note-highlight '(:foreground :magenta)
   :compiler-warning-highlight '(:foreground :orange3)
-  :compiler-error-highlight '(:foreground :red))
+  :compiler-error-highlight '(:foreground :red)
+  :incremental-search-face '(:background :tweak_background)
+  :incremental-search-other-matches-face '(:underline-p t))
 
 (define-color-theme "plain" ()
   :foreground nil :background nil
@@ -199,7 +220,10 @@
   :font-lock-builtin-face '()
   :compiler-note-highlight '()
   :compiler-warning-highlight '()
-  :compiler-error-highlight '())
+  :compiler-error-highlight '()
+  :incremental-search-face '(:background :tweak_background)
+  :incremental-search-other-matches-face '(:underline-p t))
+
 
 (define-color-theme "emacs" ()
   :foreground nil :background nil
@@ -218,7 +242,10 @@
   :font-lock-builtin-face '(:foreground :orchid)
   :compiler-note-highlight '(:foreground :magenta)
   :compiler-warning-highlight '(:foreground :orange3)
-  :compiler-error-highlight '(:foreground :red))
+  :compiler-error-highlight '(:foreground :red)
+  :incremental-search-face '(:background :tweak_background)
+  :incremental-search-other-matches-face '(:underline-p t))
+
 
 (define-color-theme "torte" ()
   :foreground (color:make-rgb 0.8s0 0.8s0 0.8s0)
@@ -238,7 +265,10 @@
   :font-lock-builtin-face `(:foreground ,(color:make-rgb 1.0s0 1.0s0 0.0s0))
   :compiler-note-highlight '(:foreground :magenta)
   :compiler-warning-highlight '(:foreground :orange)
-  :compiler-error-highlight '(:foreground :red))
+  :compiler-error-highlight '(:foreground :red)
+  :incremental-search-face '(:background :tweak_background)
+  :incremental-search-other-matches-face '(:underline-p t))
+
 
 
 ;;; Show presence when loaded
