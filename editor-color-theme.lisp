@@ -11,10 +11,7 @@
 
 (defpackage #:editor-color-theme
   (:use #:cl)
-  (:export #:*foreground-color*
-           #:*background-color*
-           #:*listener-foreground-color*
-           #:*listener-background-color*
+  (:export #:*current-colors*
            #:all-color-themes
            #:color-theme-args
            #:color-theme
@@ -27,19 +24,11 @@
 
 ;;; Configuration
 
-;; Editor foreground and background colors
-(defvar *foreground-color* nil)
-(defvar *background-color* nil)
-
-;; Listener foreground and background colors
-(defvar *listener-foreground-color* nil)
-(defvar *listener-background-color* nil)
-
-
 ;; Default foreground and background colors
 (defconstant +default-foreground-color+ :black)
 (defconstant +default-background-color+ :white)
 
+(defvar *current-colors* (make-hash-table))
 
 ;;; Implementation
 
@@ -80,8 +69,8 @@
   (values))
 
 (defun update-editor-panes ()
-  (let ((foreground (or *foreground-color* +default-foreground-color+))
-        (background (or *background-color* +default-background-color+)))
+  (let ((foreground (gethash :foreground-color *current-colors*))
+        (background (gethash :background-color *current-colors*)))
     (maphash #'(lambda (pane value)
                  (declare (ignore value))
                  (update-editor-pane pane foreground background))
@@ -90,8 +79,8 @@
 
 
 (defun update-listener-panes ()
-  (let ((foreground (or *listener-foreground-color* +default-foreground-color+))
-        (background (or *listener-background-color* +default-background-color+)))
+  (let ((foreground (gethash :listener-foreground-color *current-colors*))
+        (background (gethash :listener-background-color *current-colors*)))
     (maphash #'(lambda (pane value)
                  (declare (ignore value))
                  (update-editor-pane pane foreground background))
@@ -119,6 +108,7 @@
     :incremental-search-other-matches-face
     ))
 
+
 (defun set-color-theme (theme-name)
   (destructuring-bind (&rest color-theme-args
                              &key foreground background
@@ -128,12 +118,15 @@
       (color-theme-args theme-name)
 
     ;; editor foreground and background
-    (setf *foreground-color* (or foreground +default-foreground-color+))
-    (setf *background-color* (or background +default-background-color+))
-
+    (setf (gethash :foreground-color *current-colors*)
+         (or foreground +default-foreground-color+)
+         (gethash :background-color *current-colors*)
+         (or background +default-background-color+))
     ;; listener foreground and background
-    (setf *listener-foreground-color* (or listener-foreground +default-foreground-color+))
-    (setf *listener-background-color* (or listener-background +default-background-color+))
+    (setf (gethash :listener-foreground-color *current-colors*)
+          (or listener-foreground +default-foreground-color+)
+          (gethash :listener-background-color *current-colors*)
+          (or listener-background +default-background-color+))
                                  
     (dolist (name *editor-face-names*)
       (let* ((color-theme-args-for-face (getf color-theme-args name))
@@ -178,28 +171,24 @@
     (capi:editor-pane
      (progn
        (setf (gethash pane *all-editor-panes*) pane)
-       (when *foreground-color*
-         (setf (capi:simple-pane-foreground pane) *foreground-color*))
-       (when *background-color*
-         (setf (capi:simple-pane-background pane) *background-color*))))))
+       (let ((bg-color (gethash :background-color *current-colors*))
+             (fg-color (gethash :foreground-color *current-colors*)))
+         (when fg-color
+           (setf (capi:simple-pane-foreground pane) fg-color))
+         (when bg-color
+           (setf (capi:simple-pane-background pane) bg-color)))))))
 
 (defun set-listener-pane-colors (pane)
   (typecase pane
     (capi:editor-pane
      (progn
        (setf (gethash pane *all-listener-editor-panes*) pane)
-       (when *listener-foreground-color*
-         (setf (capi:simple-pane-foreground pane) *listener-foreground-color*))
-       (when *listener-background-color*
-         (setf (capi:simple-pane-background pane) *listener-background-color*))))
-    (capi:editor-pane
- (progn
-       (setf (gethash pane *all-listener-editor-panes*) pane)
-       (when *listener-foreground-color*
-         (setf (capi:simple-pane-foreground pane) *listener-foreground-color*))
-       (when *listener-background-color*
-         (setf (capi:simple-pane-background pane) *listener-background-color*))))
-    ))
+       (let ((bg-color (gethash :listener-background-color *current-colors*))
+             (fg-color (gethash :listener-foreground-color *current-colors*)))
+         (when fg-color
+           (setf (capi:simple-pane-foreground pane) fg-color))
+         (when bg-color
+           (setf (capi:simple-pane-background pane) bg-color)))))))
 
 
 
