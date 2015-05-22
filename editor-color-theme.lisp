@@ -119,14 +119,19 @@
 
     ;; editor foreground and background
     (setf (gethash :foreground-color *current-colors*)
-         (or foreground +default-foreground-color+)
-         (gethash :background-color *current-colors*)
-         (or background +default-background-color+))
-    ;; listener foreground and background
+          (or foreground +default-foreground-color+)
+          (gethash :background-color *current-colors*)
+          (or background +default-background-color+))
+    ;; listener foreground and background, uses
+    ;; the :background and :foreground if not specified
     (setf (gethash :listener-foreground-color *current-colors*)
-          (or listener-foreground +default-foreground-color+)
+          (or listener-foreground
+              (gethash :foreground-color *current-colors*)
+              +default-foreground-color+)
           (gethash :listener-background-color *current-colors*)
-          (or listener-background +default-background-color+))
+          (or listener-background
+              (gethash :background-color *current-colors*)
+              +default-background-color+))
                                  
     (dolist (name *editor-face-names*)
       (let* ((color-theme-args-for-face (getf color-theme-args name))
