@@ -54,14 +54,25 @@
     :incremental-search-other-matches-face
     ))
 
-(defvar *all-editor-panes* nil)
 
-(defvar *all-listener-editor-panes* nil)
 
-(defvar *all-collector-panes* nil)
-                              
+(defclass editor-panes-theme ()
+  ((editor-panes :initform nil :accessor editor-panes)
+   (output-panes :initform nil :accessor output-panes)))
+
+(defclass listener-panes-theme ()
+  ((listener-panes :initform nil :accessor listener-panes)))
+
+
+(defclass general-panes-theme ()
+  ((output-panes :initform nil :accessor output-panes)))
+
+(defvar *editor-tool* (make-instance 'editor-panes-theme))
+(defvar *listener-tool* (make-instance 'listener-panes-theme))
+(defvar *all-tools* (make-instance 'general-panes-theme))
 
 ;; (eq (capi:capi-object-name b) 'lw-tools::buffers-list)
+
 
 (defun all-color-themes ()
   (maphash #'(lambda (key value)
@@ -98,7 +109,7 @@
         (background (gethash :background-color *current-colors*)))
     (mapcar #'(lambda (pane)
                  (update-pane-colors pane foreground background))
-             *all-editor-panes*)))
+             (editor-panes *editor-tool*))))
 
 
 (defun update-listener-panes ()
@@ -106,12 +117,13 @@
         (background (gethash :listener-background-color *current-colors*)))
     (mapcar #'(lambda (pane)
                  (update-pane-colors pane foreground background))
-             *all-listener-editor-panes*))
+             (listener-panes *listener-tool*)))
   (let ((foreground (gethash :output-foreground-color *current-colors*))
         (background (gethash :output-background-color *current-colors*)))
     (mapcar #'(lambda (pane)
                 (update-pane-colors pane foreground background))
-            *all-collector-panes*)))
+            (output-panes *all-tools*))))
+
 
 
 
@@ -194,7 +206,7 @@
   (typecase pane
      (capi:collector-pane
      (progn
-       (pushnew pane *all-collector-panes*)
+       (pushnew pane (output-panes *all-tools*))
        (let ((bg-color (gethash :output-background-color *current-colors*))
              (fg-color (gethash :output-foreground-color *current-colors*)))
          (when fg-color
@@ -203,7 +215,7 @@
            (setf (capi:simple-pane-background pane) bg-color)))))
     (capi:editor-pane
      (progn
-       (pushnew pane *all-editor-panes*)
+       (pushnew pane (editor-panes *editor-tool*))
        (let ((bg-color (gethash :background-color *current-colors*))
              (fg-color (gethash :foreground-color *current-colors*)))
          (when fg-color
@@ -216,7 +228,7 @@
   (typecase pane
     (capi:editor-pane
      (progn
-       (pushnew pane *all-listener-editor-panes*)
+       (pushnew pane (listener-panes *listener-tool*))
        (let ((bg-color (gethash :listener-background-color *current-colors*))
              (fg-color (gethash :listener-foreground-color *current-colors*)))
          (when fg-color
@@ -228,7 +240,7 @@
 (defun set-collector-pane-colors (pane)
   ;; only for listener output panes
   ;(when (typep (capi:top-level-interface o) 'lw-tools:listener)
-    (pushnew pane *all-collector-panes*)
+    (pushnew pane (output-panes *all-tools*))
     (let ((bg-color (gethash :output-background-color *current-colors*))
           (fg-color (gethash :output-foreground-color *current-colors*)))
       (when fg-color
@@ -236,8 +248,6 @@
       (when bg-color
         (setf (capi:simple-pane-background pane) bg-color))))
    
-
-
 
 (lispworks:defadvice ((method capi:interface-display :before (lw-tools:editor))
                       change-editor-colors
@@ -270,7 +280,7 @@
        (not (eq obj (hcl:class-prototype (class-of obj))))))
 
 (defun cache-existing-pane (pane)
-  (pushnew pane *all-editor-panes*))
+  (pushnew pane (editor-panes *editor-tool*)))
 
 (defun cache-if-pane (obj)
   (when (is-editor-pane-p obj)
