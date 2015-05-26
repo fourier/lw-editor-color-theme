@@ -98,31 +98,54 @@
 (defun color-theme-args (theme-name)
   (rest (color-theme-data theme-name)))
 
-
-
 (defun update-pane-colors (pane foreground background)
   (setf (capi:simple-pane-foreground pane) foreground)
   (setf (capi:simple-pane-background pane) background)
   
   (let ((recolorize-p (editor::buffer-font-lock-mode-p (capi:editor-pane-buffer pane))))
     (when recolorize-p
-      (gp:invalidate-rectangle pane)))
-  (values))
-
-(defun update-editor-panes ()
-  (let ((foreground (fg *editor-tool*))
-        (background (bg *editor-tool*)))
-    (mapcar #'(lambda (pane)
-                 (update-pane-colors pane foreground background))
-             (editor-panes *editor-tool*))))
+      (gp:invalidate-rectangle pane))))
 
 
-(defun update-listener-panes ()
-  (let ((foreground (fg *listener-tool*))
-        (background (bg *listener-tool*)))
-    (mapcar #'(lambda (pane)
-                 (update-pane-colors pane foreground background))
-             (listener-panes *listener-tool*))))
+(defgeneric clear-colors (tool)
+  (:documentation "Clear colors for tool keeping other data untouched"))
+
+(defgeneric update (tool)
+  (:documentation "Update tool's colors"))
+
+
+(defmethod clear-colors ((self editor-panes-theme))
+  (with-slots (editor-background editor-foreground) self
+    (setf editor-background +default-background-color+)
+    (setf editor-foreground +default-foreground-color+)))
+
+(defmethod clear-colors ((self listener-panes-theme))
+  (with-slots (listener-background listener-foreground) self
+    (setf listener-background +default-background-color+)
+    (setf listener-foreground +default-foreground-color+)))
+
+(defmethod clear-colors ((self general-panes-theme))
+  (with-slots (output-background output-foreground) self
+    (setf output-background +default-background-color+)
+    (setf output-foreground +default-foreground-color+)))
+
+
+(defmethod update ((self editor-panes-theme))
+  (mapcar #'(lambda (pane)
+              (update-pane-colors pane (fg self) (bg self)))
+          (editor-panes self)))
+
+(defmethod update ((self listener-panes-theme))
+  (mapcar #'(lambda (pane)
+              (update-pane-colors pane (fg self) (bg self)))
+          (listener-panes self)))
+
+
+(defmethod update ((self general-panes-theme))
+  (mapcar #'(lambda (pane)
+              (update-pane-colors pane (output-fg self) (output-bg self)))
+          (output-panes self)))
+
 
 (defun set-color-theme (theme-name)
   (destructuring-bind (&rest color-theme-args
@@ -134,6 +157,11 @@
                              &allow-other-keys)
       (color-theme-args theme-name)
 
+    ;; new instances of tools wrappers
+    (clear-colors *editor-tool*)
+    (clear-colors *listener-tool*)
+    (clear-colors *all-tools*)
+    
     ;; editor foreground and background
     (when foreground
       (setf (fg *editor-tool*) foreground))
@@ -172,8 +200,9 @@
   (mapc 'set-color-theme (color-theme-super-theme-names theme-name))
   (set-color-theme theme-name)
   
-  (update-editor-panes)
-  (update-listener-panes)
+  (update *editor-tool*)
+  (update *listener-tool*)
+  (update *all-tools*)
   
   theme-name)
 
