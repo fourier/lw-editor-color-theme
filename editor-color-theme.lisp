@@ -58,14 +58,19 @@
 
 (defclass editor-panes-theme ()
   ((editor-panes :initform nil :accessor editor-panes)
-   (output-panes :initform nil :accessor output-panes)))
+   (editor-background :initform +default-background-color+ :accessor bg) 
+   (editor-foreground :initform +default-foreground-color+ :accessor fg)))
 
 (defclass listener-panes-theme ()
-  ((listener-panes :initform nil :accessor listener-panes)))
+  ((listener-panes :initform nil :accessor listener-panes)
+   (listener-foreground :initform +default-foreground-color+ :accessor bg)
+   (listener-background :initform +default-background-color+ :accessor fg)))
 
 
 (defclass general-panes-theme ()
-  ((output-panes :initform nil :accessor output-panes)))
+  ((output-panes :initform nil :accessor output-panes)
+   (output-foreground :initform +default-foreground-color+ :accessor output-fg)
+   (output-background :initform +default-background-color+ :accessor output-bg)))
 
 (defvar *editor-tool* (make-instance 'editor-panes-theme))
 (defvar *listener-tool* (make-instance 'listener-panes-theme))
@@ -105,27 +110,19 @@
   (values))
 
 (defun update-editor-panes ()
-  (let ((foreground (gethash :foreground-color *current-colors*))
-        (background (gethash :background-color *current-colors*)))
+  (let ((foreground (fg *editor-tool*))
+        (background (bg *editor-tool*)))
     (mapcar #'(lambda (pane)
                  (update-pane-colors pane foreground background))
              (editor-panes *editor-tool*))))
 
 
 (defun update-listener-panes ()
-  (let ((foreground (gethash :listener-foreground-color *current-colors*))
-        (background (gethash :listener-background-color *current-colors*)))
+  (let ((foreground (fg *listener-tool*))
+        (background (bg *listener-tool*)))
     (mapcar #'(lambda (pane)
                  (update-pane-colors pane foreground background))
-             (listener-panes *listener-tool*)))
-  (let ((foreground (gethash :output-foreground-color *current-colors*))
-        (background (gethash :output-background-color *current-colors*)))
-    (mapcar #'(lambda (pane)
-                (update-pane-colors pane foreground background))
-            (output-panes *all-tools*))))
-
-
-
+             (listener-panes *listener-tool*))))
 
 (defun set-color-theme (theme-name)
   (destructuring-bind (&rest color-theme-args
@@ -138,31 +135,27 @@
       (color-theme-args theme-name)
 
     ;; editor foreground and background
-    (setf (gethash :foreground-color *current-colors*)
-          (or foreground +default-foreground-color+)
-          (gethash :background-color *current-colors*)
-          (or background +default-background-color+))
+    (when foreground
+      (setf (fg *editor-tool*) foreground))
+    (when background
+      (setf (bg *editor-tool*) background))
     ;; listener foreground and background, uses
     ;; the :background and :foreground if not specified
-    (setf (gethash :listener-foreground-color *current-colors*)
+    (setf (fg *listener-tool*)
           (or listener-foreground
-              (gethash :foreground-color *current-colors*)
-              +default-foreground-color+)
-          (gethash :listener-background-color *current-colors*)
+              (fg *editor-tool*))
+          (bg *listener-tool*)
           (or listener-background
-              (gethash :background-color *current-colors*)
-              +default-background-color+))
+              (bg *editor-tool*)))
+
     ;; output foreground and background, uses :background and
     ;; :foreground if not specified
-    (setf (gethash :output-foreground-color *current-colors*)
+    (setf (output-fg *all-tools*)
           (or output-foreground
-              (gethash :foreground-color *current-colors*)
-              +default-foreground-color+)
-          (gethash :output-background-color *current-colors*)
+              (fg *editor-tool*))
+          (output-bg *all-tools*)
           (or output-background
-              (gethash :background-color *current-colors*)
-              +default-background-color+))
-    
+              (bg *editor-tool*)))
                                  
     (dolist (name *editor-face-names*)
       (let* ((color-theme-args-for-face (getf color-theme-args name))
@@ -204,24 +197,13 @@
 
 (defun set-editor-pane-colors (pane)
   (typecase pane
-     (capi:collector-pane
-     (progn
-       (pushnew pane (output-panes *all-tools*))
-       (let ((bg-color (gethash :output-background-color *current-colors*))
-             (fg-color (gethash :output-foreground-color *current-colors*)))
-         (when fg-color
-           (setf (capi:simple-pane-foreground pane) fg-color))
-         (when bg-color
-           (setf (capi:simple-pane-background pane) bg-color)))))
     (capi:editor-pane
      (progn
        (pushnew pane (editor-panes *editor-tool*))
-       (let ((bg-color (gethash :background-color *current-colors*))
-             (fg-color (gethash :foreground-color *current-colors*)))
-         (when fg-color
-           (setf (capi:simple-pane-foreground pane) fg-color))
-         (when bg-color
-           (setf (capi:simple-pane-background pane) bg-color)))))))
+       (let ((bg-color (bg *editor-tool*))
+             (fg-color (fg *editor-tool*)))
+         (setf (capi:simple-pane-foreground pane) fg-color)
+         (setf (capi:simple-pane-background pane) bg-color))))))
 
 
 (defun set-listener-pane-colors (pane)
@@ -229,24 +211,19 @@
     (capi:editor-pane
      (progn
        (pushnew pane (listener-panes *listener-tool*))
-       (let ((bg-color (gethash :listener-background-color *current-colors*))
-             (fg-color (gethash :listener-foreground-color *current-colors*)))
-         (when fg-color
-           (setf (capi:simple-pane-foreground pane) fg-color))
-         (when bg-color
-           (setf (capi:simple-pane-background pane) bg-color)))))))
+       (let ((bg-color (bg *listener-tool*))
+             (fg-color (fg *listener-tool*)))
+         (setf (capi:simple-pane-foreground pane) fg-color)
+         (setf (capi:simple-pane-background pane) bg-color))))))
 
 
 (defun set-collector-pane-colors (pane)
-  ;; only for listener output panes
-  ;(when (typep (capi:top-level-interface o) 'lw-tools:listener)
-    (pushnew pane (output-panes *all-tools*))
-    (let ((bg-color (gethash :output-background-color *current-colors*))
-          (fg-color (gethash :output-foreground-color *current-colors*)))
-      (when fg-color
-        (setf (capi:simple-pane-foreground pane) fg-color))
-      (when bg-color
-        (setf (capi:simple-pane-background pane) bg-color))))
+  ;;(when (typep (capi:top-level-interface pane) 'lw-tools:listener)
+  (pushnew pane (output-panes *all-tools*))
+  (let ((bg-color (output-bg *all-tools*))
+        (fg-color (output-fg *all-tools*)))
+    (setf (capi:simple-pane-foreground pane) fg-color)
+    (setf (capi:simple-pane-background pane) bg-color)))
    
 
 (lispworks:defadvice ((method capi:interface-display :before (lw-tools:editor))
@@ -263,8 +240,6 @@
   (defmethod capi:interface-display :before ((self lw-tools::listener))
     (capi:map-pane-descendant-children
      self 'set-listener-pane-colors)))
-
-(defvar called nil)
 
 ;; capi:collector-pane does'nt have interface-display method called,
 ;; so we adding the :after constuctor instead
