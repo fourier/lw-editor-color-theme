@@ -58,8 +58,11 @@
 
 (defclass editor-panes-theme ()
   ((editor-panes :initform nil :accessor editor-panes)
+   (buffers-panes :initform nil :accessor buffers-panes)
    (editor-background :initform +default-background-color+ :accessor bg) 
-   (editor-foreground :initform +default-foreground-color+ :accessor fg)))
+   (editor-foreground :initform +default-foreground-color+ :accessor fg)
+   (buffers-background :initform +default-background-color+ :accessor buffers-bg) 
+   (buffers-foreground :initform +default-foreground-color+ :accessor buffers-fg)))
 
 (defclass listener-panes-theme ()
   ((listener-panes :initform nil :accessor listener-panes)
@@ -75,9 +78,6 @@
 (defvar *editor-tool* (make-instance 'editor-panes-theme))
 (defvar *listener-tool* (make-instance 'listener-panes-theme))
 (defvar *all-tools* (make-instance 'general-panes-theme))
-
-;; (eq (capi:capi-object-name b) 'lw-tools::buffers-list)
-
 
 (defun all-color-themes ()
   (maphash #'(lambda (key value)
@@ -101,10 +101,10 @@
 (defun update-pane-colors (pane foreground background)
   (setf (capi:simple-pane-foreground pane) foreground)
   (setf (capi:simple-pane-background pane) background)
-  
-  (let ((recolorize-p (editor::buffer-font-lock-mode-p (capi:editor-pane-buffer pane))))
-    (when recolorize-p
-      (gp:invalidate-rectangle pane))))
+
+  (when (and (typep pane 'capi:editor-pane)
+             (editor::buffer-font-lock-mode-p (capi:editor-pane-buffer pane)))
+      (gp:invalidate-rectangle pane)))
 
 
 (defgeneric clear-colors (tool)
@@ -133,13 +133,15 @@
 (defmethod update ((self editor-panes-theme))
   (mapcar #'(lambda (pane)
               (update-pane-colors pane (fg self) (bg self)))
-          (editor-panes self)))
+          (editor-panes self))
+  (mapcar #'(lambda (pane)
+              (update-pane-colors pane (buffers-fg self) (buffers-bg self)))
+          (buffers-panes self)))
 
 (defmethod update ((self listener-panes-theme))
   (mapcar #'(lambda (pane)
               (update-pane-colors pane (fg self) (bg self)))
           (listener-panes self)))
-
 
 (defmethod update ((self general-panes-theme))
   (mapcar #'(lambda (pane)
@@ -154,6 +156,8 @@
                              listener-background
                              output-foreground
                              output-background
+                             buffers-foreground
+                             buffers-background
                              &allow-other-keys)
       (color-theme-args theme-name)
 
@@ -184,6 +188,15 @@
           (output-bg *all-tools*)
           (or output-background
               (bg *editor-tool*)))
+
+    ;; buffers list colors
+    (setf (buffers-fg *editor-tool*)
+          (or buffers-foreground
+              (fg *editor-tool*))
+          (buffers-bg *editor-tool*)
+          (or buffers-background
+              (bg *editor-tool*)))
+
                                  
     (dolist (name *editor-face-names*)
       (let* ((color-theme-args-for-face (getf color-theme-args name))
@@ -253,7 +266,12 @@
         (fg-color (output-fg *all-tools*)))
     (setf (capi:simple-pane-foreground pane) fg-color)
     (setf (capi:simple-pane-background pane) bg-color)))
-   
+
+(defun set-mulitcolumn-list-panel-colors (pane)
+  (when (eq (capi:capi-object-name pane) 'lw-tools::buffers-list)
+    (pushnew pane (buffers-panes *editor-tool*))
+    (update-pane-colors pane (buffers-fg *editor-tool*) (buffers-bg *editor-tool*))))
+
 
 (lispworks:defadvice ((method capi:interface-display :before (lw-tools:editor))
                       change-editor-colors
@@ -276,6 +294,14 @@
   (defmethod initialize-instance :after ((self capi:collector-pane) &rest
                                          clos::initargs &key &allow-other-keys)
     (set-collector-pane-colors self)))
+
+(lispworks:defadvice ((method initialize-instance :after (capi:multi-column-list-panel))
+                      change-multicolumn-colors
+                      :after
+                      :documentation "Change capi:multi-column-list-panel colors")
+    (self &rest initargs &key &allow-other-keys)
+  (set-mulitcolumn-list-panel-colors self))
+
 
 
 ;; This makes it "work" after the podium is launched
