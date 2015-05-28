@@ -300,6 +300,7 @@
                       :after
                       :documentation "Change capi:multi-column-list-panel colors")
     (self &rest initargs &key &allow-other-keys)
+  (declare (ignore initargs))
   (set-mulitcolumn-list-panel-colors self))
 
 
