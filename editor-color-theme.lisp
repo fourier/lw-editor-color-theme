@@ -61,8 +61,9 @@
    (buffers-panes :initform nil :accessor buffers-panes)
    (editor-background :initform +default-background-color+ :accessor bg) 
    (editor-foreground :initform +default-foreground-color+ :accessor fg)
-   (buffers-background :initform +default-background-color+ :accessor buffers-bg) 
-   (buffers-foreground :initform +default-foreground-color+ :accessor buffers-fg)))
+   (buffers-background :initform +default-background-color+ :accessor buffers-bg)
+   (buffers-foreground :initform +default-foreground-color+ :accessor buffers-fg)
+   (buffers-selected-foreground :initform +default-foreground-color+ :accessor buffers-selected-fg)))
 
 (defclass listener-panes-theme ()
   ((listener-panes :initform nil :accessor listener-panes)
@@ -98,6 +99,14 @@
 (defun color-theme-args (theme-name)
   (rest (color-theme-data theme-name)))
 
+
+(defun buffers-color-function (lp symbol state)
+  (declare (ignore lp))
+  (cond ((eq state :normal)
+         (buffers-fg *editor-tool*))
+        ((eq state :selected)
+         (buffers-selected-fg *editor-tool*))))
+        
 (defun update-pane-colors (pane foreground background)
   (setf (capi:simple-pane-foreground pane) foreground)
   (setf (capi:simple-pane-background pane) background)
@@ -157,6 +166,7 @@
                              output-foreground
                              output-background
                              buffers-foreground
+                             buffers-selected-foreground
                              buffers-background
                              &allow-other-keys)
       (color-theme-args theme-name)
@@ -193,6 +203,9 @@
     (setf (buffers-fg *editor-tool*)
           (or buffers-foreground
               (fg *editor-tool*))
+          (buffers-selected-fg *editor-tool*)
+          (or buffers-selected-foreground
+              (buffers-fg *editor-tool*))
           (buffers-bg *editor-tool*)
           (or buffers-background
               (bg *editor-tool*)))
@@ -268,8 +281,11 @@
     (setf (capi:simple-pane-background pane) bg-color)))
 
 (defun set-mulitcolumn-list-panel-colors (pane)
-  (when (eq (capi:capi-object-name pane) 'lw-tools::buffers-list)
+  (when (or (eq (capi:capi-object-name pane) 'lw-tools::buffers-list)
+            (eq (capi:capi-object-name pane) 'lispworks-tools::narrow-buffers-list))
     (pushnew pane (buffers-panes *editor-tool*))
+    (when (eq (capi:capi-object-name pane) 'lispworks-tools::narrow-buffers-list)
+      (setf (slot-value pane 'capi::color-function) #'buffers-color-function))
     (update-pane-colors pane (buffers-fg *editor-tool*) (buffers-bg *editor-tool*))))
 
 
